@@ -74,9 +74,6 @@ class QueueController extends Controller
     public function cancel(Request $request, string $token, QueueService $queueService): RedirectResponse
     {
         $record = $this->findByToken($token);
-        $studentSessionHash = hash('sha256', $request->session()->getId());
-
-        abort_unless(hash_equals($record->student_session_hash ?? '', $studentSessionHash), 404);
 
         $request->validate([
             'confirm_cancel' => ['required', 'accepted'],

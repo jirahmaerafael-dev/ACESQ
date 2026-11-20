@@ -217,15 +217,15 @@ class QueueWorkflowTest extends TestCase
         $this->assertSame('waiting', $ticket->fresh()->status);
     }
 
-    public function test_a_student_cannot_cancel_a_ticket_from_another_browser_session(): void
+    public function test_a_student_can_cancel_their_private_ticket_from_another_browser_session(): void
     {
         $ticket = app(QueueService::class)->issue($this->registrar, 'Alex Rivera', 'another-browser');
 
         $this->post(route('public.queue.cancel', $ticket->public_token), [
             'confirm_cancel' => '1',
-        ])->assertNotFound();
+        ])->assertRedirect(route('public.queue.show', $ticket->public_token));
 
-        $this->assertSame('waiting', $ticket->fresh()->status);
+        $this->assertSame('cancelled', $ticket->fresh()->status);
     }
 
     public function test_a_student_cannot_cancel_a_ticket_after_staff_marks_them_present(): void
