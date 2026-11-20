@@ -1,0 +1,19 @@
+
+        body {
+            font-family: Arial, sans-serif;
+        }
+
+        .sidebar-link {
+            transition: all 0.2s ease;
+        }
+
+        .sidebar-link:hover,
+        .sidebar-link.active {
+            background-color: #2563eb;
+            color: white;
+        }
+
+        .main-content {
+            min-width: 0;
+        }
+    
