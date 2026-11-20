@@ -155,6 +155,36 @@ class QueueService
         });
     }
 
+    public function cancel(QueueRecord $queueRecord): QueueRecord
+    {
+        $this->expireCalls($queueRecord->window_id);
+
+        return DB::transaction(function () use ($queueRecord): QueueRecord {
+            Window::query()->lockForUpdate()->findOrFail($queueRecord->window_id);
+            $record = QueueRecord::query()
+                ->whereKey($queueRecord->getKey())
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ($record->queue_date->toDateString() !== today()->toDateString()) {
+                throw ValidationException::withMessages([
+                    'queue' => 'Only tickets issued today can be cancelled.',
+                ]);
+            }
+
+            if (! in_array($record->status, ['waiting', 'called'], true)) {
+                throw ValidationException::withMessages([
+                    'queue' => 'Only waiting or called tickets can be cancelled.',
+                ]);
+            }
+
+            $record->update(['status' => 'cancelled']);
+            $this->normalizeWaitingPositions($record->window_id, today()->toDateString());
+
+            return $record->refresh();
+        });
+    }
+
     public function expireCalls(?int $windowId = null): int
     {
         $expiredCount = 0;

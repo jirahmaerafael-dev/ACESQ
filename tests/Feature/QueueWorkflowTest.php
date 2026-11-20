@@ -172,6 +172,100 @@ class QueueWorkflowTest extends TestCase
             ->assertJsonPath('active_today', true);
     }
 
+    public function test_a_student_can_cancel_their_ticket_and_rejoin_the_queue(): void
+    {
+        $ticket = $this->issueTicketInCurrentBrowser($this->registrar, 'Alex Rivera');
+        $nextTicket = $this->createQueueRecord($this->registrar, today()->toDateString(), 2, 'waiting');
+
+        $this->get(route('public.queue.show', $ticket->public_token))
+            ->assertOk()
+            ->assertSee('Cancel my ticket')
+            ->assertSee('I confirm that I no longer need this queue ticket.');
+
+        $this->post(route('public.queue.cancel', $ticket->public_token), [
+            'confirm_cancel' => '1',
+        ])
+            ->assertRedirect(route('public.queue.show', $ticket->public_token))
+            ->assertSessionHas('notice', 'Your ticket has been cancelled.');
+
+        $this->assertSame('cancelled', $ticket->fresh()->status);
+        $this->assertSame(1, $nextTicket->fresh()->queue_position);
+        $this->assertSame('cancelled', $this->get(route('public.queue.show', $ticket->public_token))
+            ->viewData('record')->status);
+
+        $this->post(route('public.queue.issue', $this->registrar), [
+            'student_name' => 'Alex Rivera',
+            'terms_agreed' => '1',
+        ])->assertRedirect();
+
+        $newTicket = QueueRecord::query()
+            ->where('student_name', 'Alex Rivera')
+            ->where('status', 'waiting')
+            ->firstOrFail();
+
+        $this->assertNotSame($ticket->queue_id, $newTicket->queue_id);
+        $this->assertSame(2, $newTicket->queue_position);
+    }
+
+    public function test_cancellation_requires_explicit_confirmation(): void
+    {
+        $ticket = $this->issueTicketInCurrentBrowser($this->registrar);
+
+        $this->post(route('public.queue.cancel', $ticket->public_token))
+            ->assertSessionHasErrors('confirm_cancel');
+
+        $this->assertSame('waiting', $ticket->fresh()->status);
+    }
+
+    public function test_a_student_cannot_cancel_a_ticket_from_another_browser_session(): void
+    {
+        $ticket = app(QueueService::class)->issue($this->registrar, 'Alex Rivera', 'another-browser');
+
+        $this->post(route('public.queue.cancel', $ticket->public_token), [
+            'confirm_cancel' => '1',
+        ])->assertNotFound();
+
+        $this->assertSame('waiting', $ticket->fresh()->status);
+    }
+
+    public function test_a_student_cannot_cancel_a_ticket_after_staff_marks_them_present(): void
+    {
+        $ticket = $this->issueTicketInCurrentBrowser($this->registrar);
+        $queueService = app(QueueService::class);
+        $queueService->callNext($this->registrar);
+        $queueService->markPresent($ticket);
+
+        $this->post(route('public.queue.cancel', $ticket->public_token), [
+            'confirm_cancel' => '1',
+        ])->assertSessionHasErrors('queue');
+
+        $this->assertSame('present', $ticket->fresh()->status);
+    }
+
+    public function test_a_student_can_cancel_a_ticket_that_has_been_called(): void
+    {
+        $ticket = $this->issueTicketInCurrentBrowser($this->registrar);
+        app(QueueService::class)->callNext($this->registrar);
+
+        $this->post(route('public.queue.cancel', $ticket->public_token), [
+            'confirm_cancel' => '1',
+        ])->assertRedirect(route('public.queue.show', $ticket->public_token));
+
+        $this->assertSame('cancelled', $ticket->fresh()->status);
+    }
+
+    public function test_a_student_cannot_cancel_a_ticket_from_a_previous_day(): void
+    {
+        $ticket = $this->issueTicketInCurrentBrowser($this->registrar);
+        $ticket->update(['queue_date' => today()->subDay()]);
+
+        $this->post(route('public.queue.cancel', $ticket->public_token), [
+            'confirm_cancel' => '1',
+        ])->assertSessionHasErrors('queue');
+
+        $this->assertSame('waiting', $ticket->fresh()->status);
+    }
+
     public function test_queue_numbers_and_missed_counts_start_over_on_the_next_day(): void
     {
         $time = Carbon::now();
@@ -519,6 +613,24 @@ class QueueWorkflowTest extends TestCase
             'terms_agreed' => '1',
         ])
             ->assertRedirect();
+
+        return QueueRecord::query()->latest('queue_id')->firstOrFail();
+    }
+
+    private function issueTicketInCurrentBrowser(Window $window, ?string $studentName = null): QueueRecord
+    {
+        $studentName ??= 'Student '.(QueueRecord::query()->count() + 1);
+
+        $response = $this->post(route('public.queue.issue', $window), [
+            'student_name' => $studentName,
+            'terms_agreed' => '1',
+        ]);
+        $response->assertRedirect();
+
+        $sessionCookie = $response->getCookie(config('session.cookie'));
+        if ($sessionCookie !== null) {
+            $this->withCookie(config('session.cookie'), $sessionCookie->getValue());
+        }
 
         return QueueRecord::query()->latest('queue_id')->firstOrFail();
     }

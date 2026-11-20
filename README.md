@@ -8,6 +8,7 @@ ACESQ (A Simple Campus Office Queuing System) is a web-based queue for the ACES 
 - Queue numbers are sequential per window and day. A student's private ticket link identifies the queue record; no student profile is stored.
 - A called number has a five-minute grace period. The first missed call moves it back five waiting positions, the second moves it back ten, and the third forfeits it.
 - The student's status page refreshes every eight seconds. It shows the ticket, waiting position, current number, estimated wait, and grace-period countdown.
+- Students can cancel a waiting or called ticket from the browser session that issued it after confirming; canceled tickets release their queue position and can be replaced. Tickets cannot be canceled after the student is marked present or on a later day.
 - Staff sign in with a username and password and can manage only their assigned window.
 - Administrators manage windows and staff accounts and can monitor all queues and missed calls. Admin routes do not provide queue actions.
 - Grace-period expiry is processed by the scheduler and by queue status/dashboard requests, so it does not depend on a staff member taking action.

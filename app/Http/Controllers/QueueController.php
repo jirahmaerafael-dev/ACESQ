@@ -71,6 +71,24 @@ class QueueController extends Controller
             ->header('Cache-Control', 'no-store, private');
     }
 
+    public function cancel(Request $request, string $token, QueueService $queueService): RedirectResponse
+    {
+        $record = $this->findByToken($token);
+        $studentSessionHash = hash('sha256', $request->session()->getId());
+
+        abort_unless(hash_equals($record->student_session_hash ?? '', $studentSessionHash), 404);
+
+        $request->validate([
+            'confirm_cancel' => ['required', 'accepted'],
+        ]);
+
+        $queueService->cancel($record);
+
+        return redirect()
+            ->route('public.queue.show', $token)
+            ->with('notice', 'Your ticket has been cancelled.');
+    }
+
     private function findByToken(string $token): QueueRecord
     {
         return QueueRecord::query()

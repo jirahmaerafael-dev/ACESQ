@@ -27,6 +27,16 @@
         @if (session('notice'))
             <p role="status" class="mb-5 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm font-medium text-blue-900">{{ session('notice') }}</p>
         @endif
+        @if ($errors->has('confirm_cancel') || $errors->has('queue'))
+            <div role="alert" class="mb-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-800">
+                @error('confirm_cancel')
+                    <p>{{ $message }}</p>
+                @enderror
+                @error('queue')
+                    <p>{{ $message }}</p>
+                @enderror
+            </div>
+        @endif
 
         <section class="overflow-hidden rounded-3xl bg-white shadow-xl shadow-slate-900/5">
             <div class="grid lg:grid-cols-[1.2fr_0.8fr]">
@@ -77,6 +87,22 @@
             <p class="mt-1 text-sm text-amber-900">Please proceed to your service window within <span id="countdown" class="font-bold">05:00</span>.</p>
         </section>
 
+        <section id="cancel-ticket-panel"
+                 class="mt-5 rounded-2xl border border-red-200 bg-white p-5 shadow-sm {{ $status['active_today'] && in_array($status['status'], ['waiting', 'called'], true) ? '' : 'hidden' }}">
+            <h2 class="text-lg font-bold text-slate-900">No longer need this ticket?</h2>
+            <p class="mt-1 text-sm text-slate-600">Cancel it so the next students can move up in line.</p>
+            <form method="POST" action="{{ route('public.queue.cancel', $record->public_token) }}" class="mt-4">
+                @csrf
+                <label class="flex items-start gap-3 text-sm text-slate-700">
+                    <input type="checkbox" name="confirm_cancel" value="1" required @checked(old('confirm_cancel')) class="mt-1 h-4 w-4 accent-red-700">
+                    <span>I confirm that I no longer need this queue ticket.</span>
+                </label>
+                <button type="submit" class="mt-4 rounded-xl bg-red-700 px-5 py-3 font-bold text-white transition hover:bg-red-800 focus:outline-none focus:ring-4 focus:ring-red-200">
+                    Cancel my ticket
+                </button>
+            </form>
+        </section>
+
         <p class="mt-5 text-center text-xs text-slate-500">
             Your ticket refreshes automatically every 8 seconds. Queue numbers and positions reset daily.
         </p>
@@ -105,6 +131,7 @@
             }
 
             const messages = {
+                cancelled: 'Your ticket has been cancelled. You can get a new number if you still need service.',
                 forfeited: 'This number has been forfeited after three missed calls. Get a new number if you still need service.',
                 completed: 'Your transaction is complete.',
                 called: 'Please proceed to your selected window.',
@@ -113,6 +140,11 @@
             document.getElementById('queue-message').textContent =
                 !data.active_today ? 'This ticket is from a previous day and is no longer active.' :
                 (messages[data.status] || `There are ${data.waiting_count} number(s) waiting.`);
+
+            document.getElementById('cancel-ticket-panel').classList.toggle(
+                'hidden',
+                !data.active_today || !['waiting', 'called'].includes(data.status)
+            );
         }
 
         async function refreshStatus() {

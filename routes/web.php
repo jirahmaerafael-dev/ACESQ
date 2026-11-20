@@ -15,6 +15,8 @@ Route::get('/queue/{token}', [QueueController::class, 'show'])
     ->name('public.queue.show');
 Route::get('/queue/{token}/status', [QueueController::class, 'status'])
     ->name('public.queue.status');
+Route::post('/queue/{token}/cancel', [QueueController::class, 'cancel'])
+    ->name('public.queue.cancel');
 
 Route::middleware('guest')->group(function (): void {
     Route::get('/login', [LoginController::class, 'showLogin'])
